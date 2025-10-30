@@ -16,6 +16,25 @@
 
 namespace Catlass::Epilogue {
 
+// For AtlasA2, FA Infer RescaleO without div rowsum
+struct EpilogueAtlasA2RescaleOWithoutDivSum {
+    using ArchTag = Arch::AtlasA2;
+};
+    
+// For AtlasA2, FA Infer OnlineSoftmaxCopySumMax
+struct EpilogueAtlasA2OnlineSoftmaxCopySumMax {
+    using ArchTag = Arch::AtlasA2;
+};
+
+// For AtlasA2, FA Unshared Softmax
+struct EpilogueAtlasA2FAUnsharedSoftmax {
+    using ArchTag = Arch::AtlasA2;
+};
+
+// For AtlasA2, FA Infer CombineScale
+struct EpilogueAtlasA2CombineScale {
+    using ArchTag = Arch::AtlasA2;
+}; 
 // For AtlasA2, an element wise epilogue of the form D = C + X, where X is an additional source
 struct EpilogueAtlasA2ElemWiseOneSource {
     using ArchTag = Arch::AtlasA2;

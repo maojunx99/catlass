@@ -68,6 +68,8 @@ struct BlockGemm {
 
 } // namespace Catlass::Gemm::Block
 
+#include "catlass/gemm/block/block_mmad_unshared_fa_pv.hpp"
+#include "catlass/gemm/block/block_mmad_unshared_fa_qk.hpp"
 #include "catlass/gemm/block/block_mmad_pingpong.hpp"
 #include "catlass/gemm/block/block_mmad_fa_qk.hpp"
 #include "catlass/gemm/block/block_mmad_fa_pv.hpp"
