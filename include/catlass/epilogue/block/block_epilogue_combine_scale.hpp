@@ -42,6 +42,7 @@
     static constexpr uint32_t ATTENTION_TEMP_PINGPONG_OFFSET = 32 * 1024;
     static constexpr uint32_t ATTENTION_TEMP_OFFSET = 2 * ATTENTION_TEMP_PINGPONG_OFFSET; // 64k
     static constexpr uint32_t ATTEN_OUT_OFFSET = 128 * 1024;
+    static constexpr uint32_t SOFTMAX_BROAD_SIZE = 8;
      CATLASS_DEVICE
      BlockEpilogue(Arch::Resource<ArchTag> &resource)
      {
@@ -134,19 +135,18 @@
                  uint32_t pingPongOffset = pingpongFlag * SUM_MAX_UB_PINGPONG_OFFSET / sizeof(float);
                  uint32_t attnPingPongOffset = pingpongFlag * ATTENTION_TEMP_PINGPONG_OFFSET / sizeof(float);
                  uint32_t sumMaxOffsetIoGm = rowOffsetIoGm;
+                 uint32_t sumMaxOffsetIoShared = rowOffsetIoGm * SOFTMAX_BROAD_SIZE;
                  uint32_t attnOffsetIoGm = rowOffsetIoGm * columnNum;
 
                  
                  AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(pingpongFlag);
-                 //cce::printf("rowLoopIdx:%d, pingPongOffset:%d, sumMaxOffsetIoGm: %d rowOffsetIoGm:%d, attnOffsetIoGm:%d\n",
-                //rowLoopIdx, pingPongOffset, sumMaxOffsetIoGm, rowOffsetIoGm, attnOffsetIoGm);
                  AscendC::DataCopy(sharedGmUbTensor[pingPongOffset], 
-                    gSharedGm[sumMaxOffsetIoGm], rowNumCurLoopRound);
+                    gSharedGm[sumMaxOffsetIoShared], rowNumCurLoop * SOFTMAX_BROAD_SIZE);
                     AscendC::DataCopy(unsharedGmUbTensor[pingPongOffset], 
                     gUnsharedGm[sumMaxOffsetIoGm], rowNumCurLoopRound); 
                  // Copy GL
                 AscendC::DataCopy(sharedGlUbTensor[pingPongOffset], 
-                    gSharedGl[sumMaxOffsetIoGm], rowNumCurLoopRound);
+                    gSharedGl[sumMaxOffsetIoShared], rowNumCurLoop * SOFTMAX_BROAD_SIZE);
                 AscendC::DataCopy(unsharedGlUbTensor[pingPongOffset], 
                     gUnsharedGl[sumMaxOffsetIoGm], rowNumCurLoopRound);
 
@@ -171,7 +171,6 @@
                  uint32_t attnPingPongOffset = pingpongFlag * ATTENTION_TEMP_PINGPONG_OFFSET / sizeof(float);
                  // 调用 SubCoreCompute 进行核心计算
                  uint32_t attnOffsetIoGm = rowOffsetIoGm * columnNum;
-                 //cce::printf("rowLoopIdx:%d, pingPongOffset:%d");
                 AscendC::SetFlag<AscendC::HardEvent::MTE2_V>(EVENT_ID4);
                 AscendC::WaitFlag<AscendC::HardEvent::MTE2_V>(EVENT_ID4);
                 SubCoreCompute(
@@ -235,6 +234,24 @@ private:
         uint32_t pingpongFlag, uint32_t rowNumCurLoop, uint32_t rowNumCurLoopRound, 
                        uint32_t columnNum, uint32_t columnNumRound) {
         // 1. gm = max(shared_gm, unshared_gm)
+        // sharedGmUbLoopTensor [row, 8]
+        // unsharedGmUbLoopTensor [row, 1]
+        AscendC::BlockReduceMax<float, false>(
+            sharedGmUbLoopTensor,
+            sharedGmUbLoopTensor,
+            rowNumCurLoop,
+            uint64_t(0),
+            1, 1, 8);
+        AscendC::PipeBarrier<PIPE_V>();
+
+        AscendC::BlockReduceMax<float, false>(
+            sharedGlUbLoopTensor,
+            sharedGlUbLoopTensor,
+            rowNumCurLoop,
+            uint64_t(0),
+            1, 1, 8);
+        AscendC::PipeBarrier<PIPE_V>();
+
         AscendC::Max<float>(
             realGmUbLoopTensor,
             sharedGmUbLoopTensor,

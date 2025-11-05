@@ -51,7 +51,7 @@
      static constexpr uint32_t UB_UINT8_BLOCK_SIZE = 16384;
      static constexpr uint32_t VECTOR_SIZE = 128;
      static constexpr uint32_t MAX_UB_S_ELEM_NUM = 8192;
- 
+     static constexpr uint32_t ROW_SUM_PINGPONG_OFFSET = 64 * 8;
      static constexpr uint32_t REDUCE_UB_SIZE = 1024;
      static constexpr uint32_t ROW_OPS_SPEC_MASK_32 = 32;
      static constexpr uint32_t ROW_OPS_SPEC_MASK_4 = 4;
@@ -68,6 +68,7 @@
          constexpr uint32_t LS_UB_TENSOR_OFFSET = 0;
          constexpr uint32_t LP_UB_TENSOR_OFFSET = 4 * UB_UINT8_BLOCK_SIZE;
          constexpr uint32_t MASK32_UB_TENSOR_OFFSET = 4 * UB_UINT8_BLOCK_SIZE;
+         
          
          constexpr uint32_t TV_UB_TENSOR_OFFSET = 10 * UB_UINT8_BLOCK_SIZE;
          constexpr uint32_t LM_UB_TENSOR_OFFSET = 10 * UB_UINT8_BLOCK_SIZE + 8 * UB_UINT8_VECTOR_SIZE;
@@ -641,18 +642,20 @@
          UpdateGlobalRowMax(rowNumCurLoop, rowNumCurLoopRound, columnNum, columnNumRound, dmUbOffsetCurCycle, rowOffset, isFirstStackTile);
          if (isLastStackTile) {
             // 保证gSharedMax经过了 Outer的偏移传入
-            AscendC::LocalTensor<float> copyTempTensor = maskUbTensor.template ReinterpretCast<float>();
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_V>(pingpongFlag);
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_V>(pingpongFlag);
-            AscendC::Brcb(copyTempTensor,
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_V>(6 + pingpongFlag);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_V>(6 + pingpongFlag);
+            AscendC::LocalTensor<float> sharedGmUbTensor = maskUbTensor.template ReinterpretCast<float>()[pingpongFlag * ROW_SUM_PINGPONG_OFFSET + 
+                rowOffset * FLOAT_BLOCK_SIZE];
+            AscendC::Brcb(sharedGmUbTensor,
                 gmUbTensor[rowOffset],
                 rowNumCurLoopRound / FLOAT_BLOCK_SIZE,
                 AscendC::BrcbRepeatParams(1, 8)
             );
+            // AscendC::PipeBarrier<PIPE_V>();
             AscendC::SetFlag<AscendC::HardEvent::V_MTE3>(pingpongFlag);
             AscendC::WaitFlag<AscendC::HardEvent::V_MTE3>(pingpongFlag);
-            AscendC::DataCopyPad(gSharedMax, copyTempTensor, 
-                AscendC::DataCopyExtParams(rowNumCurLoop, 4, 0, (headNum - 1) * 4, 0));
+            AscendC::DataCopy(gSharedMax, sharedGmUbTensor, 
+                AscendC::DataCopyParams(rowNumCurLoop, 1, 0, headNum - 1));
             
          }
 
@@ -674,18 +677,20 @@
          }
          UpdateGlobalRowSum(sUbOffset, rowNumCurLoop, rowNumCurLoopRound, dmUbOffsetCurCycle, rowOffset, isFirstStackTile);
          if (isLastStackTile) {
-            AscendC::LocalTensor<float> copyTempTensor = maskUbTensor32.template ReinterpretCast<float>();
+            // AscendC::LocalTensor<float> copyTempTensor = maskUbTensor32.template ReinterpretCast<float>()[pingpongFlag * 128];
             AscendC::SetFlag<AscendC::HardEvent::MTE3_V>(pingpongFlag);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_V>(pingpongFlag);
-            AscendC::Brcb(copyTempTensor,
+            AscendC::LocalTensor<float> sharedGlUbTensor = maskUbTensor.template ReinterpretCast<float>()[pingpongFlag * ROW_SUM_PINGPONG_OFFSET + 
+                2048 + rowOffset * FLOAT_BLOCK_SIZE];
+            AscendC::Brcb(sharedGlUbTensor,
                 glUbTensor[rowOffset],
                 rowNumCurLoopRound / FLOAT_BLOCK_SIZE,
                 AscendC::BrcbRepeatParams(1, 8)
             );
             AscendC::SetFlag<AscendC::HardEvent::V_MTE3>(pingpongFlag);
             AscendC::WaitFlag<AscendC::HardEvent::V_MTE3>(pingpongFlag);
-            AscendC::DataCopyPad(gSharedSum, copyTempTensor, 
-                AscendC::DataCopyExtParams(rowNumCurLoop, 4, 0, (headNum - 1) * 4, 0));
+            AscendC::DataCopy(gSharedSum, sharedGlUbTensor, 
+                AscendC::DataCopyParams(rowNumCurLoop, 1, 0, headNum - 1));
          }
      }
  
@@ -726,9 +731,7 @@
                  uint32_t rowOffsetIoGm = rowOffsetCurLoop + rowOffsetThisSubBlock;
                  uint32_t rowNumCurLoop = (rowLoopIdx == rowLoopNum - 1) ?
                      (rowActualThisSubBlock - rowOffsetCurLoop) : rowNumTile;
-             // loop 0 mask load before cross core sync
-             
-             
+
                 int64_t offsetInput = layoutInput.GetOffset(MatrixCoord(rowOffsetIoGm, 0));
                 auto gInputCurLoop = gInput[offsetInput];
                 
@@ -746,12 +749,8 @@
                     (rowActualThisSubBlock - rowOffsetCurLoop) : rowNumTile;
 
                 int64_t offsetOutput = layoutOutput.GetOffset(MatrixCoord(rowOffsetIoGm, 0));
-                // cce::printf("offsetOutput: %d rowOffsetIoGm:%d \n", offsetOutput, rowOffsetIoGm);
                 auto gOutputCurLoop = gOutput[offsetOutput];
-                // offset TODO
-                // cce::printf("headNum:%d\n", headNum);
-                uint32_t rowOffsetSumMax = rowOffsetIoGm * headNum;
-                // cce::printf("rowOffsetSumMax:%d\n", rowOffsetSumMax);
+                uint32_t rowOffsetSumMax = rowOffsetIoGm * headNum * FLOAT_BLOCK_SIZE;
                 auto gSharedMaxCurLoop = gSharedMax[rowOffsetSumMax];
                 auto gSharedSumCurLoop = gSharedSum[rowOffsetSumMax];
                 auto layoutOutputCurLoop = layoutOutput.GetTileLayout(MatrixCoord(rowNumCurLoop, columnNum));

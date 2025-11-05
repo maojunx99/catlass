@@ -216,59 +216,6 @@
          AscendC::SetFlag<AscendC::HardEvent::V_MTE2>(EVENT_ID3);
  
          if (isLastStackTile) {
-             // *** gl_block = expand_to_block(gl), 存放于 tv
-            //  AscendC::Brcb(tvUbTensor.ReinterpretCast<uint32_t>(),
-            //                glUbTensor.ReinterpretCast<uint32_t>(),
-            //                curRowNumRound / FLOAT_BLOCK_SIZE,
-            //                AscendC::BrcbRepeatParams(1, 8));
-            //  AscendC::PipeBarrier<PIPE_V>();
-            //  // *** go = go / gl_block
-            //  AscendC::SetVectorMask<int8_t>((uint64_t)-1, (uint64_t)-1);
-             // no rescale
-            //  for (uint32_t vdiv_idx = 0; vdiv_idx < embed / FLOAT_VECTOR_SIZE; ++vdiv_idx) {
-            //      AscendC::Div<float, false>(goUbTensor32[vdiv_idx * FLOAT_VECTOR_SIZE],
-            //                                 goUbTensor32[vdiv_idx * FLOAT_VECTOR_SIZE],
-            //                                 tvUbTensor, (uint64_t)0,
-            //                                 curRowNum,
-            //                                 AscendC::BinaryRepeatParams(1, 1, 0, embedRound / FLOAT_BLOCK_SIZE,
-            //                                                             embedRound / FLOAT_BLOCK_SIZE, 1));
-            //  }
-            //  if (embed % FLOAT_VECTOR_SIZE > 0) {
-            //      SetMask(embed % FLOAT_VECTOR_SIZE);
-            //      AscendC::Div<float, false>(goUbTensor32[embed / FLOAT_VECTOR_SIZE * FLOAT_VECTOR_SIZE],
-            //                                 goUbTensor32[embed / FLOAT_VECTOR_SIZE * FLOAT_VECTOR_SIZE],
-            //                                 tvUbTensor,
-            //                                 (uint64_t)0, curRowNum,
-            //                                 AscendC::BinaryRepeatParams(1, 1, 0, embedRound / FLOAT_BLOCK_SIZE,
-            //                                                             embedRound / FLOAT_BLOCK_SIZE, 1));
-            //      AscendC::SetVectorMask<int8_t>((uint64_t)-1, (uint64_t)-1);
-            //  }
-            //  AscendC::PipeBarrier<PIPE_V>();
-             // 考虑最后一次不cast 直接拷贝到 sharedWorkspace
-
-             // *** go = castfp32to16(go)
-             /*
-             if (std::is_same<ElementOutput, bfloat16_t>::value) {
-                 AscendC::Cast<ElementOutput, float, false>(
-                     goUbTensor16, goUbTensor32,
-                     AscendC::RoundMode::CAST_RINT, (uint64_t)0,
-                     (curRowNum * embedRound + FLOAT_VECTOR_SIZE - 1) / FLOAT_VECTOR_SIZE,
-                     AscendC::UnaryRepeatParams(1, 1, 4, 8));
-             } else {
-                 AscendC::Cast<ElementOutput, float, false>(
-                     goUbTensor16, goUbTensor32,
-                     AscendC::RoundMode::CAST_NONE, (uint64_t)0,
-                     (curRowNum * embedRound + FLOAT_VECTOR_SIZE - 1) / FLOAT_VECTOR_SIZE,
-                     AscendC::UnaryRepeatParams(1, 1, 4, 8));
-             }
-             AscendC::SetFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
-             AscendC::WaitFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
- 
-             // ***move O to GM
-             CopyOToGm(
-                 gOutput, curRowNum, qSBlockSize, embed,
-                 embedRound, qNThisSubBlock, oHiddenSize);
-             */
              AscendC::SetFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
              AscendC::WaitFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
              CopyFloatOToGm(gSharedOut, curRowNum, qSBlockSize, embed, embedRound, qNThisSubBlock, oHiddenSize);
