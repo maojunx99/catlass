@@ -302,7 +302,7 @@ public:
         uint32_t sub_m_d64 = (curRowNum + 63) / 64; // up aligned to 128
         uint64_t dmUbOffsetCurCycle = 0; //(uint64_t)(softmaxPingPongFlag * HALF_DM_UB_SIZE);
         uint64_t llUbOffsetCurCycle = 0; //(uint64_t)(softmaxPingPongFlag * HALF_LL_UB_SIZE);
-        //AscendC::WaitFlag<AscendC::HardEvent::V_MTE2>(EVENT_ID2);
+        AscendC::WaitFlag<AscendC::HardEvent::V_MTE2>(EVENT_ID0);
         AscendC::DataCopy(lsUbTensor, gInput,
                           AscendC::DataCopyParams(1, curRowNum * kSeqTileRound / FLOAT_BLOCK_SIZE, 0, 0));
 
@@ -341,6 +341,7 @@ public:
         AscendC::Add(lsUbTensor, lsUbTensor, unsharedMaskUbTensor, curRowNum * kSeqTileRound);
         AscendC::PipeBarrier<PIPE_V>();
 
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_V>(EVENT_ID0);
         // *** lm = rowmax(ls)
         ReduceMaxRepeatM(lmUbTensor, lsUbTensor, lpUbTensor32, curRowNum, kSeqTile, kSeqTileRound);
 
@@ -417,7 +418,7 @@ public:
         //cce::printf("llUbTensor[0]:%f\n", llUbTensor.GetValue(0));
         //cce::printf("lmUbTensor 222:%f, %f, %f, %f\n", lmUbTensor.GetValue(0), lmUbTensor.GetValue(1),
         //    lmUbTensor.GetValue(2), lmUbTensor.GetValue(3));
-        //AscendC::SetFlag<AscendC::HardEvent::V_MTE2>(EVENT_ID2);
+        AscendC::SetFlag<AscendC::HardEvent::V_MTE2>(EVENT_ID0);
 
         uint16_t blockCount = 1;
         uint16_t blockLen = curRowNum * kSeqTileRound / T_BLOCK_SIZE;
@@ -433,6 +434,8 @@ public:
 
         AscendC::DataCopy(gmOutput[headOffset * groupSize], lmUbTensor, curHeadNum * groupSize);
         AscendC::DataCopy(glOutput[headOffset * groupSize], llUbTensor, curHeadNum * groupSize);
+
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_V>(EVENT_ID0);
     }
 
     CATLASS_DEVICE
