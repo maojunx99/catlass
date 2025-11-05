@@ -71,6 +71,8 @@ struct BlockGemm {
 #include "catlass/gemm/block/block_mmad_unshared_fa_pv.hpp"
 #include "catlass/gemm/block/block_mmad_unshared_fa_qk.hpp"
 #include "catlass/gemm/block/block_mmad_pingpong.hpp"
+#include "catlass/gemm/block/block_mmad_fai_qk_split_row.hpp"
+#include "catlass/gemm/block/block_mmad_fai_pv_split_row.hpp"
 #include "catlass/gemm/block/block_mmad_fa_qk.hpp"
 #include "catlass/gemm/block/block_mmad_fa_pv.hpp"
 #include "catlass/gemm/block/block_mmad_mla_qk.hpp"
