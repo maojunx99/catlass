@@ -77,10 +77,10 @@ public:
         constexpr uint32_t LM_UB_TENSOR_OFFSET = 3 * UB_UINT8_BLOCK_SIZE_UNSHARED;
         //constexpr uint32_t HM_UB_TENSOR_OFFSET = 6 * UB_UINT8_BLOCK_SIZE_MLA + 1 * UB_UINT8_LINE_SIZE;
         //constexpr uint32_t DM_UB_TENSOR_OFFSET = 6 * UB_UINT8_BLOCK_SIZE_MLA + 6 * UB_UINT8_LINE_SIZE;
-        constexpr uint32_t LL_UB_TENSOR_OFFSET = 3 * UB_UINT8_BLOCK_SIZE_UNSHARED + 2 * UB_UINT8_LINE_SIZE;
+        constexpr uint32_t LL_UB_TENSOR_OFFSET = 3 * UB_UINT8_BLOCK_SIZE_UNSHARED + 4 * UB_UINT8_LINE_SIZE;
         //constexpr uint32_t GM_UB_TENSOR_OFFSET = 6 * UB_UINT8_BLOCK_SIZE_MLA + 13 * UB_UINT8_LINE_SIZE;
-        constexpr uint32_t TV_UB_TENSOR_OFFSET = 3 * UB_UINT8_BLOCK_SIZE_UNSHARED + 4 * UB_UINT8_LINE_SIZE;;
-        constexpr uint32_t MASK_UB_TENSOR_OFFSET = 3 * UB_UINT8_BLOCK_SIZE_UNSHARED + 6 * UB_UINT8_LINE_SIZE;
+        constexpr uint32_t TV_UB_TENSOR_OFFSET = 3 * UB_UINT8_BLOCK_SIZE_UNSHARED + 8 * UB_UINT8_LINE_SIZE;;
+        constexpr uint32_t MASK_UB_TENSOR_OFFSET = 3 * UB_UINT8_BLOCK_SIZE_UNSHARED + 12 * UB_UINT8_LINE_SIZE;
 
         tor = tor_;
         //kvSplitCoreNum = kvSplitCoreNum_;
@@ -114,20 +114,21 @@ public:
         uint32_t headOffset = (subBlockIdx == 0) ? 0 : curHeadSplitSubBlock;
 
         uint32_t kSeqTileRound = (maxDecodeStep * headNum + 8 - 1) / 8 * 8;
-        //AscendC::Duplicate(gmUbTensor, std::numeric_limits<float>::max(), kSeqTileRound);
         AscendC::Duplicate(unsharedMaskUbTensor, std::numeric_limits<float>::lowest(), kSeqTileRound * curHeadThisSubBlock * groupSize);
         AscendC::PipeBarrier<PIPE_V>();
-        uint64_t mask[1] = { ((1UL << unsharedKvSeqLen) - 1) << ((headOffset % 16) * maxDecodeStep)};
-        uint32_t srcOffset = headOffset / 16 * 16 * maxDecodeStep;
-        for (uint32_t round = 0, counter = 0; round < curHeadThisSubBlock; ++round) {
+        // maxDecodeStep is 3, to make sure mask is in the range of uint64_t (64 bit)
+        uint32_t counter = headOffset % BLOCK_SIZE;
+        uint64_t mask[1] = { ((1UL << unsharedKvSeqLen) - 1) << (counter * maxDecodeStep)};
+        uint32_t srcOffset = headOffset / BLOCK_SIZE * BLOCK_SIZE * maxDecodeStep;
+        for (uint32_t round = 0; round < curHeadThisSubBlock; ++round) {
             uint8_t repeatStride = kSeqTileRound * sizeof(ElementInput) / 32;
             AscendC::Adds(unsharedMaskUbTensor[srcOffset], unsharedMaskUbTensor[srcOffset], std::numeric_limits<float>::max(),
                           mask, groupSize, {1, 1, repeatStride, repeatStride});
             srcOffset += groupSize * kSeqTileRound;
-            if (++counter == 16) {
+            if (++counter == BLOCK_SIZE) {
                 counter = 0;
                 mask[0] = (1UL << unsharedKvSeqLen) - 1;
-                srcOffset += 16 * maxDecodeStep;
+                srcOffset += BLOCK_SIZE * maxDecodeStep;
             } else {
                 mask[0] <<= maxDecodeStep;
             }
@@ -300,8 +301,6 @@ public:
         uint32_t kSeqTileRound = layoutInput.stride(0);
         uint32_t subMRound = (curRowNum + 16 - 1) / 16 * 16;
         uint32_t sub_m_d64 = (curRowNum + 63) / 64; // up aligned to 128
-        uint64_t dmUbOffsetCurCycle = 0; //(uint64_t)(softmaxPingPongFlag * HALF_DM_UB_SIZE);
-        uint64_t llUbOffsetCurCycle = 0; //(uint64_t)(softmaxPingPongFlag * HALF_LL_UB_SIZE);
         AscendC::WaitFlag<AscendC::HardEvent::V_MTE2>(EVENT_ID0);
         AscendC::DataCopy(lsUbTensor, gInput,
                           AscendC::DataCopyParams(1, curRowNum * kSeqTileRound / FLOAT_BLOCK_SIZE, 0, 0));
@@ -408,7 +407,7 @@ public:
         }
 
         // *** ll = rowsum(ls32)
-        ReduceSumRepeatM(llUbTensor[llUbOffsetCurCycle], lsUbTensor, curRowNum, kSeqTile, kSeqTileRound);
+        ReduceSumRepeatM(llUbTensor, lsUbTensor, curRowNum, kSeqTile, kSeqTileRound);
 
         AscendC::PipeBarrier<PIPE_V>();
 
