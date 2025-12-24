@@ -68,7 +68,7 @@ public:
     static constexpr uint32_t HALF_LL_UB_SIZE = 256;
 
     CATLASS_DEVICE
-    BlockEpilogue(Arch::Resource<ArchTag> &resource, half tor_, uint32_t unsharedKvSeqLen, uint32_t maxDecodeStep,
+    BlockEpilogue(Arch::Resource<ArchTag> &resource, float tor_, uint32_t unsharedKvSeqLen, uint32_t maxDecodeStep,
                   uint32_t headNum, uint32_t groupSize)
     {
         // Allocate UB space
