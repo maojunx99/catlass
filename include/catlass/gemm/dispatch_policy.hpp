@@ -146,6 +146,20 @@ struct MmadAtlasA2FAIPV : public MmadAtlasA2{
 };
 
 template <bool PAGED_CACHE_FLAG_ = false, bool ENABLE_UNIT_FLAG_ = false>
+struct MmadAtlasA2XFAIQK : public MmadAtlasA2 {
+    static constexpr uint32_t STAGES = 2;
+    static constexpr bool PAGED_CACHE_FLAG = PAGED_CACHE_FLAG_;
+    static constexpr bool ENABLE_UNIT_FLAG = ENABLE_UNIT_FLAG_;
+};
+
+template <bool PAGED_CACHE_FLAG_ = false, bool ENABLE_UNIT_FLAG_ = false>
+struct MmadAtlasA2XFAIPV : public MmadAtlasA2 {
+    static constexpr uint32_t STAGES = 2;
+    static constexpr bool PAGED_CACHE_FLAG = PAGED_CACHE_FLAG_;
+    static constexpr bool ENABLE_UNIT_FLAG = ENABLE_UNIT_FLAG_;
+};
+
+template <bool PAGED_CACHE_FLAG_ = false, bool ENABLE_UNIT_FLAG_ = false>
 struct MmadAtlasA2FAITailQK : public MmadAtlasA2{
     static constexpr uint32_t STAGES = 2;
     static constexpr bool PAGED_CACHE_FLAG = PAGED_CACHE_FLAG_;

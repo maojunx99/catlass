@@ -114,6 +114,31 @@ struct EpilogueAtlasA2Gemm {
 struct EpilogueAtlasA2Gemv {
     using ArchTag = Arch::AtlasA2;
 };
+
+enum class LseMode {NONE = 0, OUT_ONLY = 1};
+template <LseMode LSE_MODE_>
+struct EpilogueAtlasA2XFAIOnlineSoftmax {
+    using ArchTag = Arch::AtlasA2;
+    static constexpr LseMode LSE_MODE = LSE_MODE_;
+};
+
+template <LseMode LSE_MODE_>
+struct EpilogueAtlasA2OnlineSoftmax_FD {
+    using ArchTag = Arch::AtlasA2;
+    static constexpr LseMode LSE_MODE = LSE_MODE_;
+};
+
+template <LseMode LSE_MODE_>
+struct EpilogueAtlasA2XFAIRescaleO {
+    using ArchTag = Arch::AtlasA2;
+    static constexpr LseMode LSE_MODE = LSE_MODE_;
+};
+
+template <LseMode LSE_MODE_>
+struct EpilogueAtlasA2RescaleO_FD {
+    using ArchTag = Arch::AtlasA2;
+    static constexpr LseMode LSE_MODE = LSE_MODE_;
+};
 ///////////////////////////
 }  // namespace Catlass::Epilogue
 

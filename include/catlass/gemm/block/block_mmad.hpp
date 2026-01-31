@@ -95,4 +95,6 @@ struct BlockGemm {
 #include "catlass/gemm/block/block_mmad_pingpong_slice_k.hpp"
 #include "catlass/gemm/block/block_mmad_dynamic_common.hpp"
 #include "catlass/gemm/block/block_mmad_small.hpp"
+#include "catlass/gemm/block/block_mmad_xfai_qk.hpp"
+#include "catlass/gemm/block/block_mmad_xfai_pv.hpp"
 #endif // CATLASS_GEMM_BLOCK_BLOCK_MMAD_HPP
