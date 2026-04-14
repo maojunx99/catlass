@@ -126,7 +126,8 @@ public:
         uint32_t mRound = RoundUp<L1AAlignHelper::M_ALIGNED>(actualShape.m());
         uint32_t nRound = RoundUp<L1BAlignHelper::N_ALIGNED>(actualShape.n());
         uint32_t kRound = RoundUp<L1BAlignHelper::K_ALIGNED>(actualShape.k());
-
+        
+        AscendC::WaitFlag<AscendC::HardEvent::MTE1_MTE2>(EVENT_ID0);
         auto layoutTileA = layoutA.GetTileLayout(MakeCoord(actualShape.m(), actualShape.k()));
         copyGmToL1A(l1ATensor, gA, layoutAInL1, layoutTileA);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE1>(EVENT_ID0);
@@ -136,7 +137,6 @@ public:
         LayoutAInL0 layoutAInL0 = LayoutAInL0::template MakeLayout<ElementA>(mRound, kRound);
         copyL1ToL0A(l0ATensor, l1ATensor, layoutAInL0, layoutAInL1);
 
-        AscendC::WaitFlag<AscendC::HardEvent::MTE1_MTE2>(EVENT_ID0);
         auto layoutTileB = layoutB.GetTileLayout(MakeCoord(actualShape.k(), actualShape.n()));
         copyGmToL1B(l1BTensor, gB, layoutBInL1, layoutTileB);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE1>(EVENT_ID0);

@@ -142,19 +142,34 @@
                  AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(pingpongFlag);
                  AscendC::DataCopy(sharedGmUbTensor[pingPongOffset], 
                     gSharedGm[sumMaxOffsetIoShared], rowNumCurLoop * SOFTMAX_BROAD_SIZE);
-                    AscendC::DataCopy(unsharedGmUbTensor[pingPongOffset], 
-                    gUnsharedGm[sumMaxOffsetIoGm], rowNumCurLoopRound); 
                  // Copy GL
                 AscendC::DataCopy(sharedGlUbTensor[pingPongOffset], 
                     gSharedGl[sumMaxOffsetIoShared], rowNumCurLoop * SOFTMAX_BROAD_SIZE);
-                AscendC::DataCopy(unsharedGlUbTensor[pingPongOffset], 
-                    gUnsharedGl[sumMaxOffsetIoGm], rowNumCurLoopRound);
 
                  // Copy Shared and Unshared
                  // [rowNum, column] 
-                 AscendC::DataCopy(sharedOutUbTensor[attnPingPongOffset], 
-                    gSharedOut[attnOffsetIoGm], rowNumCurLoop * columnNum);  // 这里一定32B对齐
-                 AscendC::DataCopy(unsharedOutUbTensor[attnPingPongOffset], 
+                if (rowNumCurLoop % FLOAT_BLOCK_SIZE == 0) {
+                    AscendC::DataCopy(unsharedGmUbTensor[pingPongOffset], 
+                        gUnsharedGm[sumMaxOffsetIoGm], rowNumCurLoop); 
+                    AscendC::DataCopy(unsharedGlUbTensor[pingPongOffset], 
+                        gUnsharedGl[sumMaxOffsetIoGm], rowNumCurLoop);
+                } else {
+                    AscendC::DataCopyExtParams copyInParams{
+                        1,
+                        static_cast<uint32_t>(rowNumCurLoop * sizeof(float)),
+                        0,
+                        0,
+                        0
+                    };
+                    AscendC::DataCopyPadExtParams<float> padParams{false, 0, 0, 0};
+                    AscendC::DataCopyPad(unsharedGmUbTensor[pingPongOffset], 
+                        gUnsharedGm[sumMaxOffsetIoGm], copyInParams, padParams); 
+                    AscendC::DataCopyPad(unsharedGlUbTensor[pingPongOffset], 
+                        gUnsharedGl[sumMaxOffsetIoGm], copyInParams, padParams);
+                }
+                AscendC::DataCopy(sharedOutUbTensor[attnPingPongOffset], 
+                    gSharedOut[attnOffsetIoGm], rowNumCurLoop * columnNum);
+                AscendC::DataCopy(unsharedOutUbTensor[attnPingPongOffset], 
                     gUnsharedOut[attnOffsetIoGm], rowNumCurLoop * columnNum);
              }
              
